@@ -17,11 +17,8 @@ vector<T2> foreach(const T1& c, Functor &&f)
 int main(int argc, char* argv[]){
     ASSERT(argc == 4);
     Parser::parse(argv[1]);
-    circuit.finish();
-//    circuit.print();
-    //return 0;
-   //circuit.dump_faults("circuits/c17_f1");
-    //return 0;
+    //circuit.print();
     Solver::solve(argv[2], argv[3]);
     return 0;
 }
+

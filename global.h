@@ -10,6 +10,7 @@ using namespace std;
 #endif
 
 #define SIZE(x) ((int)(x).size())
+#define ISIN(a, b) ((a).find(b) != (a).end())
 
 template<typename T>
 ostream& operator << (ostream& o, const vector<T> &v) {

@@ -27,7 +27,6 @@ namespace Parser {
         while (pos < size) {
             parse_module(prefix);
             pos ++;
-            cout << pos << ' ' << size << endl;
         }
     }
 

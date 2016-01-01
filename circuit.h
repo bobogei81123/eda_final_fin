@@ -4,7 +4,8 @@
 
 struct Wire {
     string name;
-    int from, to;
+    int from;
+    //int to;
 };
 
 
@@ -15,6 +16,7 @@ struct Gate {
         NAND,
         NOR,
         NOT,
+        XOR,
         DFF,
     };
     TYPE type;
@@ -31,7 +33,7 @@ struct Gate {
 
 struct Circuit {
     int wire_count, gate_count;
-    map<string, int> wireID;
+    map<string, int> wireID, gateID;
     vector<Wire> wires;
     vector<Gate> gates;
     vector<int> inputs;
@@ -50,6 +52,9 @@ struct Circuit {
     void add_logic_gate(const vector<string> &, int);
     void add_dff(const vector<string> &, int);
 
+    void finish();
+
     void print();
+    void dump_faults(string);
 };
 #endif

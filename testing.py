@@ -10,7 +10,8 @@ import sys
 files = [f for f in listdir('./circuits')]
 testdatas = [f for f in files if f.endswith('.v')]
 testdatas_with_ans = [f for f in testdatas if (f[:-2] + '_p1') in files]
-testdatas_only_s27 = ['s27.v']
+# testdatas_only_s27 = ['custom.v']
+testdatas_only_s27 = ['s35932.v']
 
 test_funcs = []
 
@@ -51,6 +52,17 @@ def s27(td):
                         )
     return ps.returncode == 0
 
+@testfunction(1)
+def test_answer(td):
+    ''' Test answers '''
+    args = [pjoin('circuits', td[:-2]+x) for x in ('.v', '_p1', '_f1')]
+    ps = subprocess.run([pjoin(EXEC_PATH, 'test_s27'),
+                         *args],
+                        stderr=STDOUT,
+                        # stdout=,
+                        )
+    return ps.returncode == 0
+
 def preform_test(fun, typ):
     tds = (testdatas, testdatas_with_ans, testdatas_only_s27)[typ]
     s = fun.__doc__
@@ -72,7 +84,7 @@ def preform_test(fun, typ):
                   'Testdata {} success, time = {:.3f}'.format(td, total_t))
 
     print()
-    print('Pass = {}/{}, total time = {:.3f}'.format(data_n, pass_n, tt))
+    print('Pass = {}/{}, total time = {:.3f}'.format(pass_n, data_n, tt))
     return data_n == pass_n
 
 def preform_wrapper(fun, flag):
