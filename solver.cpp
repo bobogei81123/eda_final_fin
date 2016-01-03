@@ -4,69 +4,54 @@ using namespace std;
 
 
 namespace Solver {
-    void solve(char* pattern_filen, char* fault_filen) {
+    void solve(char* pattern_filen,
+               char* fault_filen,
+               char* output_filen) {
+
         circuit.finish();
         auto patterns = get_patterns(pattern_filen);
         auto fault_names = get_faults(fault_filen);
         int fault_n = fault_names.size();
 
         vector<Fault> faults;
-        int _i = 0;
-        for (auto x: fault_names) {
-            faults.push_back(fault_from_string(x, _i++));
+        for (int i=0; i<SIZE(fault_names); i++) {
+            faults.push_back(fault_from_string(fault_names[i], i));
         }
 
         init();
 
-        for (auto p: patterns) {
-            set_pattern(p);
+        vector<bool> wv_nofault(circuit.wire_count),
+                     wv_temp   (circuit.wire_count);
 
-            _i = 0;
-            cout << p << ' ' << SIZE(faults) << endl;
-            //cout << true_result << endl;
-            while (_i < SIZE(faults)) {
-                auto f = faults[_i];
-                if (get<3>(f) == result[get<0>(f)]) {
-                    _i ++;
+        for (int pc=0; pc<SIZE(patterns); pc++) {
+            auto result_nofault = set_pattern(patterns[pc], wv_nofault);
+            int i = 0;
+            while (i < SIZE(faults)) {
+                auto fault = faults[i];
+                if (fault.value == wv_nofault[fault.wire]) {
+                    i ++;
                     continue;
                 }
-                set_fault(f);
-                //cout << _i << endl;
-                vector<bool> temp_res = result;
+                wv_temp = wv_nofault;
 
-                //auto &ips = circuit.inputs;
-                //vector<bool> temp_res(result.size());
-                //for (int i=0; i<SIZE(ips); i++) {
-                    //temp_res[ips[i]] = (p[i] == '1');
-                    //is_input[ips[i]] = true;
-                //}
-
-                auto r = peek(temp_res);
-                if (true_result != r) {
-                    swap(faults[_i], faults.back());
+                auto result = peek(wv_temp, fault);
+                if (result != result_nofault) {
+                    swap(faults[i], faults.back());
                     faults.pop_back();
-                } else _i++;
-
-                /*
-                cout << fault_names[get<4>(f)] << ": ";
-                cout << "(" << circuit.wires[get<0>(f)].name << "," << 
-                    (get<2>(f) == FAULT_TYPE::INPUT ? "INPUT" : "OUTPUT")
-                    << ") ";
-                cout << r << endl;
-                */
+                } else i++;
             }
         }
 
         int undetected_n = faults.size();
-        cout << "DETECTED " << fault_n - undetected_n << '\n' 
-             << "UNDETECTED " << undetected_n << endl;
-        sort(faults.begin(), faults.end());
+        ostream *o = output_filen ? new ofstream(output_filen) : &cout;
+        ofstream fout(output_filen);
+        *o << "DETECTED " << fault_n - undetected_n << '\n' 
+           << "UNDETECTED " << undetected_n << endl;
+        sort(faults.begin(), faults.end(), [](Fault f1, Fault f2) {
+                    return f1.id < f2.id;
+                });
         for (auto f: faults)
-            cout << fault_names[get<4>(f)] << endl;
-    }
-
-    void set_fault(Fault f) {
-        tie(fault_wire, fault_gate, fault_type, fault_value, ignore) = f;
+            *o << fault_names[f.id] << endl;
     }
 
     vstring get_patterns(char *fn) {
@@ -90,24 +75,16 @@ namespace Solver {
 
     int V;
     vector<int> order, revord;
-    vector<bool> visit, result, is_input, true_result;
-    FAULT_TYPE fault_type;
-    int fault_wire, fault_gate;
-    bool fault_value;
-
+    vector<bool> visit, is_input;
+    vector<int> max_back;
     
     Fault fault_from_string(string s, int id) {
-        //regex Rwire_circuit_io("([^_]+)_sa([01])");
-        //regex Rwire_gate_io("([^_]+)_(.*)_sa([01])");
-
-        //smatch match_res;
-        //bool matched;
-
-        //cout << s << endl;
         int len = s.length();
         ASSERT(len >= 4);
+
         string np = s.substr(0, len - 4);
         string swire, sgate;
+    
         bool val = (s[len-1] == '1');
         for (int i=1; i<len-4; i++) {
             if (np[i] == '_') {
@@ -123,55 +100,34 @@ namespace Solver {
             }
         }
 
-        /*
-            }
+        ASSERT(ISIN(circuit.wireID, swire));
+
+        int wid = circuit.wireID[swire];
+        Wire wire = circuit.wires[wid];
+        Fault::TYPE type; 
+
+        if (swire == sgate) {
+            type = wire.from == -1 ?
+                Fault::TYPE::OUTPUT : Fault::TYPE::INPUT;
+            return {wid, -1, type, val, id};
         }
 
-        matched = regex_match(s, match_res, Rwire_gate_io);
-        if (matched) {
-            string swire = match_res[1].str(),
-                   sgate = match_res[2].str();
-            bool val = (match_res[3].str() == "1");
-            */
-        {
-            ASSERT(ISIN(circuit.wireID, swire));
+        ASSERT(ISIN(circuit.gateID, sgate));
 
-            int wid = circuit.wireID[swire];
-            Wire wire = circuit.wires[wid];
-            FAULT_TYPE type; 
-
-            if (swire == sgate) {
-                type = wire.from == -1 ?
-                    FAULT_TYPE::OUTPUT : FAULT_TYPE::INPUT;
-                return make_tuple(wid, -1, type, val, id);
-            }
-
-            ASSERT(ISIN(circuit.gateID, sgate));
-
-            int gid = circuit.gateID[sgate];
-            Gate gate = circuit.gates[gid];
-            type = wire.from == gid ?
-                FAULT_TYPE::OUTPUT : FAULT_TYPE::INPUT;
-            return make_tuple(wid, gid, type, val, id);
-        }
-
-        ASSERT(false);
+        int gid = circuit.gateID[sgate];
+        Gate gate = circuit.gates[gid];
+        type = wire.from == gid ?
+            Fault::TYPE::OUTPUT : Fault::TYPE::INPUT;
+        return {wid, gid, type, val, id};
     }
 
     void init() {
         V = circuit.wire_count;
         visit.resize(V);
         revord.resize(V);
-        result.resize(V);
         is_input.resize(V);
+        max_back.resize(V);
         get_topological_order();
-
-        clear_fault();
-    }
-
-    void clear_fault() {
-        fault_type = FAULT_TYPE::NONE;
-        fault_wire = fault_gate = -2;
     }
 
     void get_topological_order() {
@@ -200,23 +156,25 @@ namespace Solver {
             dfs(x);
         }
 
+        int id = order.size();
+        for (auto x: gate.inputs) {
+            max_back[x] = max(max_back[x], id);
+        }
+
         RETURN;
 #undef RETURN
     }
 
-    void set_pattern(const string &pat) {
+    vector<bool> set_pattern(const string &pat, vector<bool> &wire_value) {
         ASSERT(pat.length() == circuit.inputs.size());
 
         auto &ips = circuit.inputs;
+        vector<bool> result;
         for (int i=0; i<SIZE(ips); i++) {
-            result[ips[i]] = (pat[i] == '1');
+            wire_value[ips[i]] = (pat[i] == '1');
             is_input[ips[i]] = true;
         }
-        clear_fault();
-        true_result = peek();
-        //for (int i=0; i<SIZE(circuit.wires); i++) {
-            //cout << circuit.wires[i].name << ' ' << result[i] << endl;
-        //}
+        return peek(wire_value);
     }
 
     inline bool quick_feed(const Gate &gate, const vector<bool> &res) {
@@ -226,33 +184,41 @@ namespace Solver {
             case Gate::TYPE::AND:
             case Gate::TYPE::NAND:
                 for (auto x: gate.inputs) {
-                    if (!res[x]) return gate.type == Gate::TYPE::AND ? false : true;
+                    if (!res[x]) 
+                        return gate.type == Gate::TYPE::AND ? false : true;
                 }
                 return gate.type == Gate::TYPE::AND ? true : false;
             case Gate::TYPE::OR:
             case Gate::TYPE::NOR:
                 for (auto x: gate.inputs) {
-                    if (res[x]) return gate.type == Gate::TYPE::OR ? true : false;
+                    if (res[x]) 
+                        return gate.type == Gate::TYPE::OR ? true : false;
                 }
                 return gate.type == Gate::TYPE::OR ? false : true;
         }
         assert(false);
     }
 
-    vector<bool> peek(vector<bool> &res) {
+    vector<bool> peek(vector<bool> &res, const Fault &fault) {
         int start = 0;
-        if (fault_type != FAULT_TYPE::NONE and fault_wire >= 0)
-            start = revord[fault_wire];
+        if (fault.has_fault() and fault.wire >= 0)
+            if (fault.is_output())
+                start = revord[fault.wire];
+            else if (fault.gate != -1)
+                start = revord[circuit.gates[fault.gate].output];
+            else start = V;
+        int back = start;
 
         for (int i=start; i<V; i++) {
+            if (fault.has_fault() and i > back) break;
             int wire = order[i];
-
             int from = circuit.wires[wire].from;
 
-            if (fault_type == FAULT_TYPE::OUTPUT
-                and wire == fault_wire) {
-
-                res[wire] = fault_value;
+            if (fault.is_output() and wire == fault.wire) {
+                if (res[wire] != fault.value) {
+                    res[wire] = fault.value;
+                    back = max_back[wire];
+                }
                 continue;
             }
 
@@ -263,32 +229,36 @@ namespace Solver {
             ASSERT(not gate.is_dff()); 
 
 
-            if (fault_type == FAULT_TYPE::INPUT and from == fault_gate) {
+            bool ans;
+            if (fault.is_input() and from == fault.gate) {
                 vector<bool> in(gate.inputs.size());
                 for (int j=0; j<SIZE(gate.inputs); j++) {
                     int tw = gate.inputs[j];
-                    if (tw == fault_wire) {
-                           in[j] = fault_value;
+                    if (tw == fault.wire) {
+                           in[j] = fault.value;
                     } else in[j] = res[tw];
                 }
-                res[wire] = gate.feed(in);
-                //cout << fault_value << ' ' << gate.name << endl;
-                //cout << gate.feed(in) << endl;
+                ans = gate.feed(in);
             } else {
-                res[wire] = quick_feed(gate, res);
+                ans = quick_feed(gate, res);
+            }
+
+            if (ans != res[wire]) {
+                back = max(back, max_back[wire]);
+                res[wire] = ans;
             }
         }
 
         vector<bool> out(circuit.outputs.size());
-        int _i = 0;
-        for (auto x: circuit.outputs) {
-            if (fault_type == FAULT_TYPE::INPUT
-                and (fault_gate == -1 or circuit.gates[fault_gate].is_dff())
-                and x == fault_wire) {
+        for (int i=0; i<SIZE(circuit.outputs); i++) {
+            int wire = circuit.outputs[i];
+            if (fault.is_input()
+                and (fault.gate == -1 or circuit.gates[fault.gate].is_dff())
+                and wire == fault.wire) {
 
-                out[_i++] = fault_value;
+                out[i] = fault.value;
             } else {
-                out[_i++] = res[x];
+                out[i] = res[wire];
             }
         } 
         return out;

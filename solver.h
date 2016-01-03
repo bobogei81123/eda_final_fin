@@ -9,33 +9,50 @@ namespace Solver {
     using Parser::circuit;
     typedef vector<string> vstring;
 
-    enum class FAULT_TYPE {
-        NONE,
-        INPUT,
-        OUTPUT,
+    struct Fault {
+        enum class TYPE {
+            NONE,
+            INPUT,
+            OUTPUT,
+        };
+
+        int wire;
+        int gate;
+        TYPE type;
+        int value;
+        int id;
+
+        inline static Fault no_fault() {
+            return {0, 0, TYPE::NONE, 0, 0};
+        }
+
+        inline bool has_fault() const {
+            return type != TYPE::NONE;
+        }
+
+        inline bool is_output() const {
+            return type == TYPE::OUTPUT;
+        }
+
+        inline bool is_input() const {
+            return type == TYPE::INPUT;
+        }
     };
 
-    typedef tuple<int, int, FAULT_TYPE, bool, int> Fault; 
-    //           wire,      type , val , id
-
-    void solve(char* pattern_filen, char* fault_filen);
+    void solve(char* pattern_filen, char* fault_filen, char* output_filen=NULL);
     vstring get_patterns(char*);
     vstring get_faults(char*);
-    void set_fault(Fault);
-    void clear_fault();
 
     Fault fault_from_string(string, int id=0);
 
     extern int V;
     extern vector<int> order;
-    extern vector<bool> visit, result, is_input, true_result;
-    extern FAULT_TYPE fault_type;
-    extern int fault_wire, fault_gate;
-    extern bool fault_value;
+    extern vector<bool> visit, is_input;
 
     void init();
-    void set_pattern(const string&);
-    vector<bool> peek(vector<bool> &res = result);
+    vector<bool> set_pattern(const string&, vector<bool>&);
+    vector<bool> peek(vector<bool> &res,
+            const Fault &fault = Fault::no_fault());
     
     void get_topological_order();
     void dfs(int v);

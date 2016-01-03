@@ -6,12 +6,12 @@ from os import listdir
 from termcolor import colored
 import time
 import sys
+import filecmp
 
 files = [f for f in listdir('./circuits')]
 testdatas = [f for f in files if f.endswith('.v')]
 testdatas_with_ans = [f for f in testdatas if (f[:-2] + '_p1') in files]
-# testdatas_only_s27 = ['custom.v']
-testdatas_only_s27 = ['s298.v']
+testdatas_only_s27 = ['s27.v']
 
 test_funcs = []
 
@@ -53,15 +53,26 @@ def s27(td):
     return ps.returncode == 0
 
 @testfunction(1)
-def test_answer(td):
+def ans(td):
     ''' Test answers '''
-    args = [pjoin('circuits', td[:-2]+x) for x in ('.v', '_p1', '_f1')]
-    ps = subprocess.run([pjoin(EXEC_PATH, 'test_s27'),
-                         *args],
+    tn = td[:-2]
+    args = [pjoin('circuits', tn+x) for x in ('.v', '_p1', '_f1')]
+    ps = subprocess.run([pjoin(EXEC_PATH, 'test_ans'),
+                         *args, 'temp'],
                         stderr=STDOUT,
                         # stdout=,
                         )
-    return ps.returncode == 0
+    if ps.returncode:
+        return 0
+
+    with open('temp') as f:
+        my_ans = f.read()
+
+    with open(pjoin('circuits', tn+'_r1')) as f:
+        next(f)
+        real_ans = f.read()
+
+    return my_ans == real_ans
 
 def preform_test(fun, typ):
     tds = (testdatas, testdatas_with_ans, testdatas_only_s27)[typ]

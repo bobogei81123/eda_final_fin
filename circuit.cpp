@@ -150,6 +150,11 @@ void Circuit::finish() {
     sort(outputs.begin(), outputs.end(), functor);
 }
 
+void Circuit::print_desc() {
+    cout << "Gate count = " << gate_count << endl;
+    cout << "Wire count = " << wire_count << endl;
+}
+
 void Circuit::print() {
     cout << "Gate count = " << gate_count << endl;
     for (auto x: gates) {
