@@ -22,7 +22,7 @@ namespace Solver {
             set_pattern(p);
 
             _i = 0;
-            cout << p << endl;
+            cout << p << ' ' << SIZE(faults) << endl;
             //cout << true_result << endl;
             while (_i < SIZE(faults)) {
                 auto f = faults[_i];
@@ -219,6 +219,26 @@ namespace Solver {
         //}
     }
 
+    inline bool quick_feed(const Gate &gate, const vector<bool> &res) {
+        switch (gate.type) {
+            case Gate::TYPE::NOT:
+                return !res[gate.inputs[0]];
+            case Gate::TYPE::AND:
+            case Gate::TYPE::NAND:
+                for (auto x: gate.inputs) {
+                    if (!res[x]) return gate.type == Gate::TYPE::AND ? false : true;
+                }
+                return gate.type == Gate::TYPE::AND ? true : false;
+            case Gate::TYPE::OR:
+            case Gate::TYPE::NOR:
+                for (auto x: gate.inputs) {
+                    if (res[x]) return gate.type == Gate::TYPE::OR ? true : false;
+                }
+                return gate.type == Gate::TYPE::OR ? false : true;
+        }
+        assert(false);
+    }
+
     vector<bool> peek(vector<bool> &res) {
         int start = 0;
         if (fault_type != FAULT_TYPE::NONE and fault_wire >= 0)
@@ -239,33 +259,31 @@ namespace Solver {
             if (is_input[wire]) continue;
 
             ASSERT(from != -1);
-            Gate gate = circuit.gates[from];
+            Gate &gate = circuit.gates[from];
             ASSERT(not gate.is_dff()); 
 
 
-            vector<bool> in(gate.inputs.size());
             if (fault_type == FAULT_TYPE::INPUT and from == fault_gate) {
+                vector<bool> in(gate.inputs.size());
                 for (int j=0; j<SIZE(gate.inputs); j++) {
                     int tw = gate.inputs[j];
                     if (tw == fault_wire) {
                            in[j] = fault_value;
                     } else in[j] = res[tw];
                 }
+                res[wire] = gate.feed(in);
                 //cout << fault_value << ' ' << gate.name << endl;
                 //cout << gate.feed(in) << endl;
             } else {
-                for (int j=0; j<SIZE(gate.inputs); j++) {
-                    in[j] = res[gate.inputs[j]];
-                }
+                res[wire] = quick_feed(gate, res);
             }
-
-            res[wire] = gate.feed(in);
         }
 
         vector<bool> out(circuit.outputs.size());
         int _i = 0;
         for (auto x: circuit.outputs) {
             if (fault_type == FAULT_TYPE::INPUT
+                and (fault_gate == -1 or circuit.gates[fault_gate].is_dff())
                 and x == fault_wire) {
 
                 out[_i++] = fault_value;

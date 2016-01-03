@@ -11,7 +11,7 @@ files = [f for f in listdir('./circuits')]
 testdatas = [f for f in files if f.endswith('.v')]
 testdatas_with_ans = [f for f in testdatas if (f[:-2] + '_p1') in files]
 # testdatas_only_s27 = ['custom.v']
-testdatas_only_s27 = ['s35932.v']
+testdatas_only_s27 = ['s298.v']
 
 test_funcs = []
 

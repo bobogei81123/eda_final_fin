@@ -54,6 +54,10 @@ struct Circuit {
 
     void finish();
 
+    // Print gate/wire number
+    void print_desc();
+
+    // For debuging
     void print();
     void dump_faults(string);
 };
