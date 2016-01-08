@@ -47,11 +47,12 @@ namespace Solver {
 
     extern int V;
     extern vector<int> order;
-    extern vector<bool> visit, is_input;
+    extern vector<bool> visit, is_input, is_output;
 
     void init();
-    vector<bool> set_pattern(const string&, vector<bool>&);
-    vector<bool> peek(vector<bool> &res,
+    void set_pattern(const string&, vector<bool>&);
+    void peek_nofault(vector<bool> &res);
+    bool judge_fault(vector<bool> &res,
             const Fault &fault = Fault::no_fault());
     
     void get_topological_order();

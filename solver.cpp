@@ -24,7 +24,7 @@ namespace Solver {
                      wv_temp   (circuit.wire_count);
 
         for (int pc=0; pc<SIZE(patterns); pc++) {
-            auto result_nofault = set_pattern(patterns[pc], wv_nofault);
+            set_pattern(patterns[pc], wv_nofault);
             int i = 0;
             while (i < SIZE(faults)) {
                 auto fault = faults[i];
@@ -34,8 +34,8 @@ namespace Solver {
                 }
                 wv_temp = wv_nofault;
 
-                auto result = peek(wv_temp, fault);
-                if (result != result_nofault) {
+                auto result = judge_fault(wv_temp, fault);
+                if (result) {
                     swap(faults[i], faults.back());
                     faults.pop_back();
                 } else i++;
@@ -75,7 +75,7 @@ namespace Solver {
 
     int V;
     vector<int> order, revord;
-    vector<bool> visit, is_input;
+    vector<bool> visit, is_input, is_output;
     vector<int> max_back;
     
     Fault fault_from_string(string s, int id) {
@@ -126,12 +126,14 @@ namespace Solver {
         visit.resize(V);
         revord.resize(V);
         is_input.resize(V);
+        is_output.resize(V);
         max_back.resize(V);
         get_topological_order();
     }
 
     void get_topological_order() {
         for (auto x: circuit.outputs) {
+            is_output[x] = true;
             dfs(x);
         }
     }
@@ -140,7 +142,7 @@ namespace Solver {
         if (visit[v]) return;
         visit[v] = true;
 
-#define RETURN {revord[v]=order.size(); order.push_back(v); return;}
+#define RETURN {max_back[v]=revord[v]=order.size(); order.push_back(v); return;}
 
         Wire wire = circuit.wires[v];
 
@@ -165,7 +167,7 @@ namespace Solver {
 #undef RETURN
     }
 
-    vector<bool> set_pattern(const string &pat, vector<bool> &wire_value) {
+    void set_pattern(const string &pat, vector<bool> &wire_value) {
         ASSERT(pat.length() == circuit.inputs.size());
 
         auto &ips = circuit.inputs;
@@ -174,7 +176,7 @@ namespace Solver {
             wire_value[ips[i]] = (pat[i] == '1');
             is_input[ips[i]] = true;
         }
-        return peek(wire_value);
+        peek_nofault(wire_value);
     }
 
     inline bool quick_feed(const Gate &gate, const vector<bool> &res) {
@@ -199,23 +201,47 @@ namespace Solver {
         assert(false);
     }
 
-    vector<bool> peek(vector<bool> &res, const Fault &fault) {
+    void peek_nofault(vector<bool> &res) {
+
+        for (int i=0; i<V; i++) {
+            int wire = order[i];
+            int from = circuit.wires[wire].from;
+
+            if (is_input[wire]) continue;
+
+            ASSERT(from != -1);
+            Gate &gate = circuit.gates[from];
+            ASSERT(not gate.is_dff()); 
+
+            bool ans;
+            ans = quick_feed(gate, res);
+            res[wire] = ans;
+        }
+    }
+
+    bool judge_fault(vector<bool> &res, const Fault &fault) {
         int start = 0;
-        if (fault.has_fault() and fault.wire >= 0)
+        assert(fault.has_fault());
+        //cout << fault_directs_to_output(fault.gate) << endl;
+        if (fault.wire >= 0) {
             if (fault.is_output())
                 start = revord[fault.wire];
-            else if (fault.gate != -1)
+            else if (fault.gate == -1 
+                     or circuit.gates[fault.gate].is_dff())
+                return res[fault.wire] != fault.value;
+            else 
                 start = revord[circuit.gates[fault.gate].output];
-            else start = V;
+        }
         int back = start;
 
         for (int i=start; i<V; i++) {
-            if (fault.has_fault() and i > back) break;
+            if (i > back) break;
             int wire = order[i];
             int from = circuit.wires[wire].from;
 
             if (fault.is_output() and wire == fault.wire) {
                 if (res[wire] != fault.value) {
+                    if (is_output[wire]) return true;
                     res[wire] = fault.value;
                     back = max_back[wire];
                 }
@@ -227,7 +253,6 @@ namespace Solver {
             ASSERT(from != -1);
             Gate &gate = circuit.gates[from];
             ASSERT(not gate.is_dff()); 
-
 
             bool ans;
             if (fault.is_input() and from == fault.gate) {
@@ -244,24 +269,16 @@ namespace Solver {
             }
 
             if (ans != res[wire]) {
+
+                if (is_output[wire]) {
+                    return true;
+                }
+
                 back = max(back, max_back[wire]);
                 res[wire] = ans;
             }
         }
-
-        vector<bool> out(circuit.outputs.size());
-        for (int i=0; i<SIZE(circuit.outputs); i++) {
-            int wire = circuit.outputs[i];
-            if (fault.is_input()
-                and (fault.gate == -1 or circuit.gates[fault.gate].is_dff())
-                and wire == fault.wire) {
-
-                out[i] = fault.value;
-            } else {
-                out[i] = res[wire];
-            }
-        } 
-        return out;
+        return false;
     }
 }
 
