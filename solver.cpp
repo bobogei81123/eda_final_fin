@@ -34,6 +34,7 @@ namespace Solver {
                 }
                 wv_temp = wv_nofault;
 
+                time_stamp ++;
                 auto result = judge_fault(wv_temp, fault);
                 if (result) {
                     swap(faults[i], faults.back());
@@ -73,11 +74,6 @@ namespace Solver {
         return ls;
     }
 
-    int V;
-    vector<int> order, revord;
-    vector<bool> visit, is_input, is_output;
-    vector<int> max_back;
-    
     Fault fault_from_string(string s, int id) {
         int len = s.length();
         ASSERT(len >= 4);
@@ -121,13 +117,22 @@ namespace Solver {
         return {wid, gid, type, val, id};
     }
 
+    int V;
+    vector<int> order, revord;
+    vector<bool> visit, is_input, is_output;
+    vector<vector<int> > fanout;
+    vector<int> could_change;
+    int time_stamp;
+    
+
     void init() {
         V = circuit.wire_count;
         visit.resize(V);
         revord.resize(V);
         is_input.resize(V);
         is_output.resize(V);
-        max_back.resize(V);
+        fanout.resize(V);
+        could_change.resize(V);
         get_topological_order();
     }
 
@@ -142,7 +147,7 @@ namespace Solver {
         if (visit[v]) return;
         visit[v] = true;
 
-#define RETURN {max_back[v]=revord[v]=order.size(); order.push_back(v); return;}
+#define RETURN {revord[v]=order.size(); order.push_back(v); return;}
 
         Wire wire = circuit.wires[v];
 
@@ -160,7 +165,7 @@ namespace Solver {
 
         int id = order.size();
         for (auto x: gate.inputs) {
-            max_back[x] = max(max_back[x], id);
+            fanout[x].push_back(v);
         }
 
         RETURN;
@@ -219,6 +224,17 @@ namespace Solver {
         }
     }
 
+    inline void notify_change(int wid, priority_queue<int> &pq) {
+    }
+
+#define notify_change(_wire) \
+    for (auto x: fanout[_wire]) { \
+        if (could_change[x] != time_stamp) { \
+            pq.push(revord[x]); \
+            could_change[x] = time_stamp; \
+        } \
+    }
+
     bool judge_fault(vector<bool> &res, const Fault &fault) {
         int start = 0;
         assert(fault.has_fault());
@@ -232,10 +248,11 @@ namespace Solver {
             else 
                 start = revord[circuit.gates[fault.gate].output];
         }
-        int back = start;
+        priority_queue<int, vector<int>, greater<int> > pq;
+        pq.push(start);
 
-        for (int i=start; i<V; i++) {
-            if (i > back) break;
+        while (not pq.empty()) {
+            int i = pq.top(); pq.pop();
             int wire = order[i];
             int from = circuit.wires[wire].from;
 
@@ -243,7 +260,7 @@ namespace Solver {
                 if (res[wire] != fault.value) {
                     if (is_output[wire]) return true;
                     res[wire] = fault.value;
-                    back = max_back[wire];
+                    notify_change(wire);
                 }
                 continue;
             }
@@ -274,8 +291,8 @@ namespace Solver {
                     return true;
                 }
 
-                back = max(back, max_back[wire]);
                 res[wire] = ans;
+                notify_change(wire);
             }
         }
         return false;

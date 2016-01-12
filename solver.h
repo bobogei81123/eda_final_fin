@@ -48,6 +48,8 @@ namespace Solver {
     extern int V;
     extern vector<int> order;
     extern vector<bool> visit, is_input, is_output;
+    extern vector<int> could_change;
+    extern int time_stamp;
 
     void init();
     void set_pattern(const string&, vector<bool>&);

@@ -1,5 +1,5 @@
 CC = g++
-CPPFLAGS = --std=c++14 -Wall -Wshadow -O2 -I. -DDEBUG
+CPPFLAGS = --std=c++14 -Wall -Wshadow -O2 -I.# -DDEBUG
 MAIN = fsim.cpp
 TEST = testing.py
 CPPFILES = $(filter-out $(TEST) $(MAIN), $(wildcard *.cpp))
